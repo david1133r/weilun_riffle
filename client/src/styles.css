@@ -1,0 +1,1516 @@
+:root {
+  --felt: #12241c;
+  --felt-light: #1c3a2c;
+  --line: rgba(255, 255, 255, 0.12);
+  --panel: rgba(255, 255, 255, 0.06);
+  --text: #e8f0ea;
+  --muted: #8ea79a;
+  --gold: #e3b341;
+  --red: #d94f4f;
+  --radius: 10px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(ellipse at 50% 0%, var(--felt-light), var(--felt) 70%);
+  color: var(--text);
+  font-family: 'Noto Sans TC', 'Microsoft JhengHei', system-ui, sans-serif;
+  font-size: 15px;
+}
+
+h1 {
+  font-size: 1.35rem;
+  margin: 0;
+}
+h2 {
+  font-size: 0.95rem;
+  margin: 0 0 0.6rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0.3rem 0;
+}
+
+input,
+select {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 0.5rem 0.65rem;
+  font: inherit;
+  min-width: 0;
+}
+input:focus,
+select:focus {
+  outline: 2px solid var(--gold);
+  outline-offset: -1px;
+}
+
+.btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 0.5rem 0.9rem;
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.18);
+}
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.btn--primary {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #201803;
+  font-weight: 700;
+}
+.btn--primary:hover:not(:disabled) {
+  background: #f0c451;
+}
+.btn--danger {
+  border-color: rgba(217, 79, 79, 0.5);
+  color: #ffb4b4;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.9rem;
+}
+
+.tag {
+  display: inline-block;
+  font-size: 0.7rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  margin-left: 0.35rem;
+  background: rgba(255, 255, 255, 0.12);
+  vertical-align: middle;
+}
+.tag--host {
+  background: rgba(227, 179, 65, 0.25);
+  color: var(--gold);
+}
+.tag--me {
+  background: rgba(120, 200, 255, 0.2);
+  color: #9ad4ff;
+}
+.tag--offline {
+  background: rgba(217, 79, 79, 0.25);
+  color: #ff9d9d;
+}
+.tag--ready {
+  background: rgba(90, 210, 140, 0.22);
+  color: #86e3af;
+}
+.tag--rules {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--muted);
+}
+.tag--spectator,
+.tag--turn {
+  background: rgba(227, 179, 65, 0.2);
+  color: var(--gold);
+}
+
+.badge {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+}
+.badge--waiting {
+  color: #86e3af;
+  border-color: rgba(134, 227, 175, 0.4);
+}
+.badge--playing {
+  color: var(--gold);
+  border-color: rgba(227, 179, 65, 0.4);
+}
+.badge--finished {
+  color: var(--muted);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.dot--on {
+  background: #5ad28c;
+}
+.dot--off {
+  background: var(--red);
+}
+
+/* --------------------------------------------------------------- 卡牌 */
+
+.card {
+  --card-w: 54px;
+  width: var(--card-w);
+  height: calc(var(--card-w) * 1.45);
+  background: #fbfaf6;
+  border: 1px solid #cfc9bb;
+  border-radius: 6px;
+  position: relative;
+  padding: 3px 4px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-family: Georgia, 'Times New Roman', serif;
+  cursor: default;
+  flex: 0 0 auto;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35);
+}
+.card--small {
+  --card-w: 34px;
+  border-radius: 4px;
+  padding: 2px;
+}
+/* 色調 a/b/c/d 依序是 黑桃/紅心/方塊/梅花；牌桌外觀就是傳統的紅黑兩色 */
+.card--ta,
+.card--td {
+  color: #17201c;
+}
+.card--tb,
+.card--tc {
+  color: #c62828;
+}
+.card--clickable {
+  cursor: pointer;
+}
+.card--clickable:hover {
+  transform: translateY(-6px);
+}
+.card--selected {
+  transform: translateY(-16px);
+  box-shadow: 0 0 0 2px var(--gold), 0 6px 14px rgba(0, 0, 0, 0.45);
+}
+.card__corner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+  font-size: calc(var(--card-w) * 0.26);
+  font-weight: 700;
+}
+.card__corner--bottom {
+  transform: rotate(180deg);
+}
+.card--small .card__corner--bottom,
+.card--small .card__center {
+  display: none;
+}
+.card--small .card__corner {
+  font-size: calc(var(--card-w) * 0.4);
+  flex-direction: row;
+  gap: 1px;
+  height: 100%;
+  justify-content: center;
+  align-items: center;
+}
+.card__center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(var(--card-w) * 0.5);
+  opacity: 0.22;
+}
+
+.card-back-stack {
+  display: inline-flex;
+  align-items: center;
+}
+.card-back {
+  width: 14px;
+  height: 21px;
+  border-radius: 3px;
+  background: repeating-linear-gradient(45deg, #2f5f88, #2f5f88 3px, #24496a 3px, #24496a 6px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  margin-right: -8px;
+}
+.card-back-stack__count {
+  margin-left: 14px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--gold);
+}
+
+/* --------------------------------------------------------------- 進入畫面 */
+
+.gate {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+.gate__card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  width: min(360px, 100%);
+  text-align: center;
+}
+
+/* --------------------------------------------------------------- 大廳 */
+
+.lobby {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+.lobby__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--line);
+}
+.lobby__header-en {
+  color: var(--gold);
+  font-size: 0.8rem;
+  letter-spacing: 0.15em;
+}
+.lobby__nickname {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+.lobby__nickname input {
+  width: 8rem;
+}
+.lobby__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 1rem;
+  margin-top: 1rem;
+  align-items: start;
+}
+.lobby__rooms {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+.lobby__create-row {
+  display: flex;
+  gap: 0.5rem;
+}
+.lobby__create-row input {
+  flex: 1;
+}
+/* 規則開關：一排勾選框，窄畫面自己折行 */
+.lobby__rules {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.9rem;
+  margin: 0.6rem 0 0;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.lobby__rules legend {
+  padding: 0 0.3rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.lobby__rules label {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.lobby__list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.room-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.3rem 1rem;
+  padding: 0.7rem;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  align-items: center;
+}
+.room-row__main {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.room-row__name {
+  font-weight: 700;
+}
+.room-row__code {
+  font-family: ui-monospace, monospace;
+  color: var(--gold);
+  font-size: 0.85rem;
+}
+.room-row__meta {
+  grid-column: 1;
+  display: flex;
+  gap: 0.8rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.room-row__actions {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  display: flex;
+  gap: 0.4rem;
+}
+
+/* --------------------------------------------------------------- 聊天 */
+
+.chat {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  min-height: 260px;
+}
+.chat__title {
+  font-size: 0.95rem;
+  margin: 0 0 0.5rem;
+  color: var(--muted);
+}
+.chat__list {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.6rem;
+}
+.chat__empty {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.chat__line {
+  margin: 0;
+  font-size: 0.87rem;
+  line-height: 1.4;
+  word-break: break-word;
+}
+.chat__line--system {
+  color: var(--muted);
+  font-style: italic;
+  font-size: 0.8rem;
+}
+.chat__author {
+  color: var(--gold);
+  font-weight: 700;
+  margin-right: 0.4rem;
+}
+.chat__line--mine .chat__author {
+  color: #9ad4ff;
+}
+.chat__form {
+  display: flex;
+  gap: 0.4rem;
+}
+.chat__form input {
+  flex: 1;
+}
+.chat__form button {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 0 0.8rem;
+  font: inherit;
+  cursor: pointer;
+}
+.chat__form button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* --------------------------------------------------------------- 房間 */
+
+.room {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  gap: 0.9rem;
+}
+.room__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.8rem;
+}
+.room__code {
+  font-family: ui-monospace, monospace;
+  color: var(--gold);
+  font-size: 0.85rem;
+}
+.room__header-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.room__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 1rem;
+  align-items: start;
+  flex: 1;
+}
+.room__side {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.table {
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 100%;
+  position: relative;
+}
+.table__seats {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.seat {
+  flex: 1 1 140px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.6rem 0.7rem;
+  position: relative;
+  min-width: 130px;
+}
+.seat--turn {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 1px var(--gold) inset;
+}
+.seat--empty {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  border-style: dashed;
+  font-size: 0.85rem;
+}
+.seat__name {
+  font-weight: 700;
+  margin-bottom: 0.45rem;
+  font-size: 0.9rem;
+}
+.seat__status {
+  min-height: 22px;
+  display: flex;
+  align-items: center;
+}
+.seat__rank {
+  color: var(--gold);
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+.seat__passed {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.6rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.05rem 0.3rem;
+}
+
+.table__center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  min-height: 200px;
+  text-align: center;
+}
+.table__last {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+.table__last-label {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0;
+}
+.table__last-cards {
+  display: flex;
+  gap: 0.35rem;
+}
+.table__turn {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.9rem;
+}
+/* 輪到自己：整列放大加底色，跟 .room[data-myturn] 的整桌高亮一起看 */
+.table__turn[data-mine='true'] {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--gold);
+  background: rgba(227, 179, 65, 0.16);
+  border: 1px solid var(--gold);
+  border-radius: 999px;
+  padding: 0.35rem 0.9rem;
+}
+.table__turn[data-mine='true']::before {
+  content: '▶';
+  font-size: 0.85em;
+}
+.timer {
+  width: 140px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.timer__bar {
+  height: 100%;
+  background: var(--gold);
+  transition: width 0.25s linear;
+}
+.timer[data-urgency='warn'] .timer__bar {
+  background: #e08a3c;
+}
+.timer[data-urgency='critical'] .timer__bar {
+  background: var(--red);
+  animation: timer-flash 1s ease-in-out infinite;
+}
+.timer__value {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  min-width: 2.4rem;
+  text-align: left;
+}
+.table__result ol {
+  list-style: none;
+  counter-reset: rank;
+  padding: 0;
+  margin: 0.8rem 0;
+}
+.table__result li {
+  counter-increment: rank;
+  font-size: 1.05rem;
+  padding: 0.2rem 0;
+}
+.table__result li::before {
+  content: '第 ' counter(rank) ' 名 ';
+  color: var(--gold);
+  font-weight: 700;
+}
+.table__log {
+  border-top: 1px solid var(--line);
+  padding-top: 0.6rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  min-height: 3rem;
+}
+.table__log p {
+  margin: 0.15rem 0;
+}
+
+/* 台灣麻將：像素牌用 canvas 畫，這裡只排版 */
+.mahjong-meta {
+  gap: 0.35rem;
+  position: relative;
+  min-height: 2rem;
+}
+.mahjong-tile {
+  display: block;
+  image-rendering: pixelated;
+}
+.mahjong-tile--clickable {
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+.mahjong-tile--clickable:hover {
+  transform: translateY(-4px);
+}
+.mahjong-hand-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  justify-content: center;
+}
+.mahjong-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-top: 0.5rem;
+}
+.table__prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+.mahjong-my-score {
+  margin: 0;
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--gold);
+}
+/* 碰／吃／胡是「你要不要吃下這張牌」的關鍵決定，放大加紅字讓人一眼看到別漏按 */
+.mahjong-action--claim {
+  font-size: 1.15rem;
+  font-weight: 800;
+  padding: 0.6rem 1.2rem;
+  color: #ff5252;
+  border-color: #ff5252;
+}
+.mahjong-action--claim.btn--primary {
+  background: #ff5252;
+  color: #fff;
+  border-color: #ff5252;
+}
+.mahjong-action--claim:hover:not(:disabled) {
+  background: #ff6b6b;
+  color: #fff;
+}
+.mahjong-chi-detail {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 400;
+  opacity: 0.85;
+}
+/* 吃／碰／槓／自摸／胡／放槍：蓋在座位卡片正中央的紅色大字，2 秒後自動消失 */
+.mahjong-banner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  font-weight: 900;
+  color: #ff3b3b;
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.6), 0 0 14px rgba(255, 59, 59, 0.5);
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 8px;
+  z-index: 5;
+  pointer-events: none;
+  animation: mahjong-banner-pop 0.25s ease-out;
+}
+@keyframes mahjong-banner-pop {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+/* 開局前 3 秒的蓋牌等待畫面，蓋住整張桌子（含座位），時間到換成「遊戲開始」再自己淡出 */
+.mahjong-deal-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 14px;
+  z-index: 10;
+  pointer-events: none;
+}
+.mahjong-deal-text {
+  margin: 0;
+  font-size: 2.2rem;
+  font-weight: 900;
+  color: var(--gold);
+  text-shadow: 0 0 8px rgba(0, 0, 0, 0.7);
+  animation: mahjong-banner-pop 0.3s ease-out;
+}
+/* 開局擲骰決定莊家的三顆骰子 */
+.mahjong-dice-row {
+  display: flex;
+  gap: 0.5rem;
+}
+.mahjong-die {
+  font-size: 3.5rem;
+  line-height: 1;
+  color: #fff;
+  animation: mahjong-banner-pop 0.3s ease-out;
+}
+.mahjong-melds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  justify-content: center;
+  margin-bottom: 0.3rem;
+}
+.mahjong-meld {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+}
+.mahjong-meld__label {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.mahjong-meld__tiles {
+  display: flex;
+  gap: 0.15rem;
+}
+.seat__melds {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 0.2rem;
+}
+.seat__meld {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+.seat__meld-label {
+  color: var(--muted);
+}
+.mahjong-discards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.1rem;
+  justify-content: center;
+}
+/* 四家的棄牌合併成一排，不塞進座位小卡片、也不標是誰打的，滿 10 張換行 */
+.mahjong-discard-board {
+  display: grid;
+  grid-template-columns: repeat(20, auto);
+  gap: 0.15rem;
+  justify-content: center;
+  padding: 0.5rem 0;
+}
+/* 胡牌後公布全場手牌，讓每個玩家（不只觀戰者）互相核對 */
+.mahjong-revealed-hands {
+  margin-top: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--line);
+}
+.mahjong-revealed-hands__title {
+  margin: 0 0 0.4rem;
+  font-weight: 700;
+  color: var(--gold);
+}
+.mahjong-revealed-hands__row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+}
+.mahjong-revealed-hands__name {
+  min-width: 4.5rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.mahjong-revealed-hands__tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem;
+}
+/* 吃／碰／槓的面子跟暗牌放在同一排，用一條左邊界隔開，方便一眼分清楚 */
+.mahjong-revealed-hands__meld {
+  display: flex;
+  gap: 0.1rem;
+  margin-left: 0.4rem;
+  padding-left: 0.4rem;
+  border-left: 1px solid var(--line);
+}
+/* 贏家實際胡的牌型，配合下面的台數清單一起看，才知道為什麼可以胡 */
+.mahjong-winning-hand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  margin: 0.4rem 0;
+}
+.mahjong-winning-hand__label {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.mahjong-winning-hand__tiles {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.15rem;
+}
+.mahjong-winning-hand__meld {
+  display: flex;
+  gap: 0.1rem;
+  margin-left: 0.4rem;
+  padding-left: 0.4rem;
+  border-left: 1px solid var(--line);
+}
+/* 結算畫面的「按繼續」區塊 */
+.mahjong-ready {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0.5rem 0;
+}
+/* 房主專屬：有人申請頂替電腦座位的提示卡 */
+.mahjong-join-request {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.6rem;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--gold);
+  border-radius: 8px;
+  background: rgba(227, 179, 65, 0.1);
+}
+.mahjong-join-request p {
+  margin: 0;
+  font-weight: 700;
+}
+.mahjong-join-request__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.spectator__row {
+  padding: 0.4rem 0;
+  border-top: 1px solid var(--line);
+}
+.spectator__name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  display: block;
+  margin-bottom: 0.3rem;
+}
+.spectator__cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.room__footer {
+  border-top: 1px solid var(--line);
+  padding-top: 0.9rem;
+}
+
+/* --- 輪到自己：整桌與控制列一起亮起來，不然只有中央一行小字太容易漏看 */
+.room[data-myturn='true'] .table {
+  border-color: var(--gold);
+  animation: turn-pulse 2.4s ease-in-out infinite;
+}
+.room[data-myturn='true'] .room__footer {
+  border-top-color: var(--gold);
+}
+@keyframes turn-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(227, 179, 65, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 14px 2px rgba(227, 179, 65, 0.35);
+  }
+}
+@keyframes timer-flash {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+/* 系統要求減少動態時只留顏色與邊框 */
+@media (prefers-reduced-motion: reduce) {
+  .room[data-myturn='true'] .table,
+  .timer[data-urgency='critical'] .timer__bar {
+    animation: none;
+  }
+  .room[data-myturn='true'] .table {
+    box-shadow: 0 0 10px 1px rgba(227, 179, 65, 0.3);
+  }
+}
+.room__controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.2rem;
+}
+.room__hint {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.room__hint--ok {
+  color: var(--gold);
+  font-weight: 700;
+}
+/* 花色由小到大的對照表，貼在手牌上方 */
+.suit-order {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.85rem;
+}
+.suit-order__label {
+  color: var(--muted);
+}
+.suit-order__step {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.suit-order__lt {
+  color: var(--muted);
+  opacity: 0.6;
+}
+.suit-order__item {
+  min-width: 1.4em;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.9);
+  font-weight: 700;
+  text-align: center;
+}
+.hand {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding-top: 1rem;
+  min-height: 90px;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 2rem;
+  transform: translateX(-50%);
+  background: rgba(20, 20, 20, 0.94);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.6rem 1.1rem;
+  font-size: 0.9rem;
+  z-index: 50;
+}
+
+/* --- 德州撲克 */
+.tag--game {
+  background: rgba(227, 179, 65, 0.18);
+  color: var(--gold);
+}
+.tag--button {
+  background: var(--gold);
+  color: #1a1a1a;
+  font-weight: 700;
+}
+.tag--blind {
+  background: rgba(255, 255, 255, 0.2);
+}
+.tag--allin {
+  background: rgba(217, 79, 79, 0.25);
+  color: #ffb4b4;
+  font-weight: 700;
+}
+.seat--folded {
+  opacity: 0.45;
+}
+.seat__status {
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.seat__chips {
+  color: var(--gold);
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+.seat__bet {
+  font-size: 0.75rem;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  padding: 0.1rem 0.4rem;
+}
+.seat__action {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.6rem;
+  font-size: 0.7rem;
+  color: var(--muted);
+  max-width: 60%;
+  text-align: right;
+}
+
+.holdem__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.holdem__street {
+  color: var(--gold);
+  font-weight: 700;
+}
+.holdem__board {
+  display: flex;
+  gap: 0.4rem;
+  justify-content: center;
+  padding: 0.9rem 0;
+}
+.holdem__slot {
+  --card-w: 54px;
+  width: var(--card-w);
+  height: calc(var(--card-w) * 1.42);
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.holdem__pots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+}
+.holdem__pot {
+  background: rgba(227, 179, 65, 0.15);
+  color: var(--gold);
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 0.2rem 0.75rem;
+}
+.holdem__pot--side {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font-weight: 500;
+}
+
+.holdem__showdown ul {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0.6rem 0;
+  padding: 0;
+}
+.holdem__showdown li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+}
+.holdem__showdown-name {
+  font-weight: 700;
+  min-width: 5em;
+}
+.holdem__showdown-cards {
+  display: inline-flex;
+  gap: 0.2rem;
+}
+.holdem__winner .holdem__showdown-name {
+  color: var(--gold);
+}
+.holdem__won {
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.holdem__raise {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.holdem__raise input[type='range'] {
+  width: 120px;
+  accent-color: var(--gold);
+}
+.holdem__raise-input {
+  width: 5.5rem;
+}
+.holdem__mine {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+}
+.holdem__me-info {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  padding-bottom: 0.9rem;
+}
+.holdem__strength {
+  color: var(--gold);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+/* 大富翁 ------------------------------------------------------------------ */
+
+.monopoly__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.monopoly__phase {
+  color: var(--gold);
+  font-weight: 700;
+}
+.monopoly__active {
+  margin: 0.4rem 0 0;
+  font-size: 0.9rem;
+}
+
+.monopoly__panel {
+  margin: 0.6rem 0;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--gold);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.monopoly__panel h3 {
+  margin: 0 0 0.3rem;
+  font-size: 0.9rem;
+}
+.monopoly__panel p {
+  margin: 0.15rem 0;
+  font-size: 0.85rem;
+}
+.monopoly__debt {
+  border-left-color: var(--red);
+}
+
+/* 棋盤：一列一格的清單，捲動容器高度固定 */
+.board {
+  margin-top: 0.8rem;
+}
+.board__title {
+  margin: 0 0 0.4rem;
+}
+.board__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 19rem;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, 0.2);
+}
+.board__row {
+  display: grid;
+  grid-template-columns: 3.5rem minmax(0, 1fr) 5.5rem 4.5rem 4.5rem;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.22rem 0.5rem;
+  font-size: 0.82rem;
+  border-left: 3px solid transparent;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.board__row:last-child {
+  border-bottom: none;
+}
+.board__row[data-here='true'] {
+  background: rgba(227, 179, 65, 0.12);
+}
+.board__row[data-mine='true'] .board__name {
+  color: var(--gold);
+}
+/* 色組 → 左側色條。這組代號跟花色的 a~d 是不同的一套，刻意取中性名 */
+.board__row[data-tone='a'] {
+  border-left-color: #8a5a3b;
+}
+.board__row[data-tone='b'] {
+  border-left-color: #7fc4e8;
+}
+.board__row[data-tone='c'] {
+  border-left-color: #d97fb0;
+}
+.board__row[data-tone='d'] {
+  border-left-color: #e0913f;
+}
+.board__row[data-tone='e'] {
+  border-left-color: #d94f4f;
+}
+.board__row[data-tone='f'] {
+  border-left-color: #e3d341;
+}
+.board__row[data-tone='g'] {
+  border-left-color: #5ac27a;
+}
+.board__row[data-tone='h'] {
+  border-left-color: #5a86d9;
+}
+.board__row[data-tone='i'] {
+  border-left-color: #b7b7b7;
+}
+.board__row[data-tone='j'] {
+  border-left-color: #6fd6c4;
+}
+.board__row[data-kind='go'],
+.board__row[data-kind='jail'],
+.board__row[data-kind='goToJail'],
+.board__row[data-kind='freeParking'],
+.board__row[data-kind='tax'],
+.board__row[data-kind='chance'],
+.board__row[data-kind='fate'] {
+  color: var(--muted);
+}
+.board__tokens {
+  display: flex;
+  gap: 0.15rem;
+  min-height: 1.2rem;
+}
+.board__token {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+.board__token[data-mine='true'] {
+  background: var(--gold);
+  color: #201803;
+}
+.board__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.board__owner,
+.board__value {
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.board__houses {
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+/* 底部：現金、地產清單與每塊地的四顆小鈕 */
+.monopoly__mine {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.monopoly__me-info {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+.monopoly__estates h3 {
+  margin: 0 0 0.3rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+.monopoly__estates ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.monopoly__estates li {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  background: rgba(255, 255, 255, 0.04);
+}
+.monopoly__estates li[data-mortgaged='true'] {
+  opacity: 0.5;
+}
+.monopoly__estate-actions {
+  display: inline-flex;
+  gap: 0.2rem;
+}
+.btn--small {
+  padding: 0.15rem 0.4rem;
+  font-size: 0.72rem;
+}
+
+.monopoly__bid {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.monopoly__bid-input {
+  width: 6rem;
+}
+
+/* 提出交易的雙欄面板 */
+.monopoly__trade {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+.monopoly__trade-target {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.monopoly__trade-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+.monopoly__trade-col h3 {
+  margin: 0 0 0.3rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+.monopoly__trade-col ul {
+  list-style: none;
+  margin: 0 0 0.4rem;
+  padding: 0;
+  max-height: 9rem;
+  overflow-y: auto;
+}
+.monopoly__trade-col li label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  padding: 0.1rem 0;
+  cursor: pointer;
+}
+.monopoly__trade-cash {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.monopoly__trade-cash input {
+  width: 6rem;
+}
+.monopoly__trade-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.lobby__rules--monopoly input[type='number'] {
+  width: 6rem;
+}
+
+.seat__tile {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+@media (max-width: 860px) {
+  .lobby__body,
+  .room__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .card,
+  .holdem__slot {
+    --card-w: 44px;
+  }
+  .board__row {
+    grid-template-columns: 3rem minmax(0, 1fr) 4rem;
+  }
+  .board__houses,
+  .board__value {
+    display: none;
+  }
+  .monopoly__trade-cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .room-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .room-row__actions {
+    grid-row: auto;
+    grid-column: 1;
+  }
+}
