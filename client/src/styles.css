@@ -792,6 +792,13 @@ select:focus {
   color: #fff;
   animation: mahjong-banner-pop 0.3s ease-out;
 }
+.mahjong-flowers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem;
+  justify-content: center;
+  margin-bottom: 0.3rem;
+}
 .mahjong-melds {
   display: flex;
   flex-wrap: wrap;
@@ -812,6 +819,12 @@ select:focus {
 .mahjong-meld__tiles {
   display: flex;
   gap: 0.15rem;
+}
+.seat__flowers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.1rem;
+  margin-top: 0.2rem;
 }
 .seat__melds {
   display: flex;

@@ -91,6 +91,12 @@ export interface Room {
   spectators: Map<PlayerId, Member>;
   chat: ChatMessage[];
   log: LogEvent[];
+  /**
+   * 累計曾經 push 過的 log 事件數（不因 LOG_HISTORY 裁剪而減少）。
+   * 前端要靠這個而不是 log.length 來判斷「有沒有新事件」—— log 被裁剪到只剩
+   * LOG_HISTORY 筆之後，log.length 會停在定值，光看陣列長度會誤判成再也沒有新事件。
+   */
+  logSeq: number;
   game: RoomGame | null;
   /**
    * 德州撲克的房內籌碼表。房間活著就一直累積，離開再回來也保留，
@@ -106,6 +112,12 @@ export interface Room {
   npcTimer: NodeJS.Timeout | null;
   /** 台灣麻將：房間滿位時有人申請頂替電腦座位，等房主接受或婉拒；同時最多一筆。 */
   mahjongJoinRequest: MahjongJoinRequest | null;
+  /**
+   * 台灣麻將：開局擲骰動畫還沒播完的截止時間戳；在這之前電腦座位不能搶先出手，
+   * 免得畫面還在擲骰、蓋牌，牌局其實已經在電腦手裡跑掉好幾步。只在真正開新的一場比賽
+   * 時設定一次，同一場比賽裡續局不會重播動畫，也就不用重設。
+   */
+  mahjongDealUntil: number | null;
 }
 
 /** 台灣麻將加入申請：記著申請者的 socket，房主回應時才找得到人通知結果。 */
@@ -212,6 +224,7 @@ export function createRoom(input: CreateRoomInput): Room {
     spectators: new Map(),
     chat: [],
     log: [],
+    logSeq: 0,
     game: null,
     chips: new Map(),
     buttonSeat: -1, // 還沒發過牌；第一手會往後推一位，也就是從座位 0 開始坐莊
@@ -219,6 +232,7 @@ export function createRoom(input: CreateRoomInput): Room {
     handTimer: null,
     npcTimer: null,
     mahjongJoinRequest: null,
+    mahjongDealUntil: null,
   };
   seatPlayer(room, host);
   return room;
@@ -384,6 +398,7 @@ export function pushChat(history: ChatMessage[], message: ChatMessage): void {
 
 export function pushLog(room: Room, event: LogEvent): void {
   room.log.push(event);
+  room.logSeq += 1;
   if (room.log.length > LOG_HISTORY) room.log.splice(0, room.log.length - LOG_HISTORY);
 }
 
@@ -724,6 +739,7 @@ function buildMahjongGameView(room: Room, game: MahjongState, viewerId: PlayerId
     roundResult: game.roundResult,
     allHands: mahjongRevealedHands(game),
     roundReady: game.roundReady.slice(),
+    pendingMatchEnd: game.pendingMatchEnd,
   };
 }
 
@@ -857,6 +873,7 @@ export function buildRoomView(room: Room, viewerId: PlayerId): RoomView | null {
     chips,
     game: buildGameView(room, viewerId),
     log: room.log.slice(),
+    logSeq: room.logSeq,
     mahjongJoinRequest:
       room.gameType === 'taiwanMahjong' && room.mahjongJoinRequest
         ? { nickname: room.mahjongJoinRequest.nickname }

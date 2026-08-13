@@ -142,15 +142,38 @@ do not special-case it there.
 NPCs act on their own pace, not on the human turn clock: `room.npcTimer` (separate from
 `turnTimer`/`handTimer`) is rescheduled by `scheduleMahjongNpc` after every mahjong-affecting
 action and, when the seat to act is an NPC, fires `mahjongAi.ts`'s `aiChooseDiscard` /
-`aiSelfDrawAction` / `aiRespond` after a short human-like delay. Round-end confirmation
-(`continueRound`) is a **second, room-level state machine that deliberately never touches
-`turnSeat`** — `state.roundReady: boolean[]` plus `room.handTimer` — because `gameContext` already
-rejects actions once `state.over === true` during `roundEnd`; `onMahjongContinueRound` bypasses
-`gameContext` entirely rather than bending it to accept a "turn-less" action. NPC seats
-auto-confirm (`autoConfirmMahjongNpcSeats`); there is deliberately **no kick-on-timeout** — a
-20s-idle human just keeps their seat and the round advances anyway once the timer fires
-(`scheduleNextMahjongRound` → `advanceMahjongRound`). Don't reintroduce a kick here; it was built
-once and explicitly reverted.
+`aiSelfDrawAction` / `aiRespond` after a short human-like delay. That delay is itself clamped
+against `room.mahjongDealUntil` — a timestamp set once, at `game:start`, to
+`Date.now() + MAHJONG_DEAL_MS` (7.5s animation + 0.75s buffer). Without this, an NPC's ~1.8s
+reaction fires long before the client's local dice-roll/flip-over animation (`dealPhase` in
+`MahjongTable.tsx`, timed independently on the client with no server round-trip) finishes, so the
+board visibly jumps ahead while the dice are still spinning. `MahjongTable.tsx` mirrors the same
+gate client-side (`actionsLocked`) so a human can't out-act the animation either — the two
+timelines are hand-tuned to match; if either side's animation timing changes, update the other.
+
+Round-end confirmation (`continueRound`) is a **second, room-level state machine that deliberately
+never touches `turnSeat`** — `state.roundReady: boolean[]` plus `room.handTimer` — because
+`gameContext` already rejects actions once `state.over === true` during `roundEnd`;
+`onMahjongContinueRound` bypasses `gameContext` entirely rather than bending it to accept a
+"turn-less" action. NPC seats auto-confirm (`autoConfirmMahjongNpcSeats`); there is deliberately
+**no kick-on-timeout** — an idle human just keeps their seat and the round advances anyway once
+`MAHJONG_ROUND_READY_MS` (3 minutes) elapses (`scheduleNextMahjongRound` → `advanceMahjongRound`).
+Don't reintroduce a kick here; it was built once and explicitly reverted.
+
+**The match-ending round still gets a full `roundEnd` screen before anyone sees rankings.**
+`finishRound` always lands on `phase: 'roundEnd'` — even when this round pushed someone past
+`MAHJONG_TARGET_SCORE` or hit `MAHJONG_MAX_ROUNDS` — and only sets a `pendingMatchEnd` flag rather
+than jumping straight to `matchEnd`. `state.matchOver` (and therefore `RoomView`'s wire-level
+`over`) stays `false` through that screen, so `checkGameOver`/`emitRanking` don't fire yet either.
+`scheduleNextMahjongRound` branches on `pendingMatchEnd`: normal rounds wait for
+`roundReady`/`MAHJONG_ROUND_READY_MS` as above, but a `pendingMatchEnd` round skips the ready-gate
+entirely and just waits a flat `MAHJONG_MATCH_END_DELAY_MS` (20s) before calling
+`finalizeMahjongMatch` (sets `matchWinnerSeat`, `matchOver`, `phase: 'matchEnd'`). This exists
+because the previous behavior skipped the win-breakdown screen entirely on the deciding round —
+the client never got to show tai/hand for the winning play, it just jumped to the final ranking.
+Never collapse `finishRound` back into deciding `matchEnd` directly; the two-step
+`pendingMatchEnd` → `finalizeMahjongMatch` split is what makes the last round look like every
+other round.
 
 Two more mahjong-only engine fields exist purely to make the shared discard pile render correctly:
 `discardOrder`/`discardSeq` is a single monotonic counter across all four seats (the UI merges all

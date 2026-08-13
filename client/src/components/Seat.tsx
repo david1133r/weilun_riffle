@@ -28,16 +28,22 @@ interface Props {
   chips?: number;
   /** 戰報，只有台灣麻將用來抓「剛剛誰吃碰槓胡了」，蓋出 2 秒的大字提示。 */
   log?: readonly LogEvent[];
+  /** log 的累計 seq；log 陣列本身會被裁剪，偵測「有沒有新事件」要靠這個而非 log.length。 */
+  logSeq?: number;
 }
 
-export function Seat({ seat, isTurn, isMe, playing, gameType, game, chips, log }: Props) {
+export function Seat({ seat, isTurn, isMe, playing, gameType, game, chips, log, logSeq }: Props) {
   const { skin, t } = useSkin();
   const holdem = game?.type === 'holdem' ? game.seats[seat.seat] : undefined;
   const monopoly = game?.type === 'monopoly' ? game.seats[seat.seat] : undefined;
   const mahjong = game?.type === 'taiwanMahjong' ? game.seats[seat.seat] : undefined;
   // 蓋牌與破產都是「還在座位上但已經出局」，共用同一個淡出樣式
   const folded = (holdem?.folded ?? false) || (monopoly?.bankrupt ?? false);
-  const mahjongBanner = useMahjongActionBanner(gameType === 'taiwanMahjong' ? (log ?? []) : [], seat.nickname);
+  const mahjongBanner = useMahjongActionBanner(
+    gameType === 'taiwanMahjong' ? (log ?? []) : [],
+    logSeq ?? 0,
+    seat.nickname,
+  );
 
   return (
     <div
@@ -217,6 +223,13 @@ function MahjongStatus({
   return (
     <>
       <span className="seat__chips">{t('mahjong.scoreLabel', { n: info.score })}</span>
+      {info.flowers.length > 0 && (
+        <div className="seat__flowers">
+          {info.flowers.map((tile, index) => (
+            <MahjongTileIcon key={`${tile}-${index}`} tile={tile} scale={0.7} />
+          ))}
+        </div>
+      )}
       <CardBack count={info.handCount} />
       {info.melds.length > 0 && (
         <div className="seat__melds">

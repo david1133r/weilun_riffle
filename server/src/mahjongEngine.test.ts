@@ -5,6 +5,7 @@ import {
   chooseSelfDrawAction,
   confirmMahjongRoundReady,
   discardTile,
+  finalizeMahjongMatch,
   rankMahjongSeats,
   respondToReaction,
   startMahjong,
@@ -155,19 +156,39 @@ describe('mahjong round-end ready gate', () => {
 });
 
 describe('finishRound match-end conditions', () => {
-  it('ends the match once someone reaches the 2000-point target', () => {
+  it('flags the deciding round as pendingMatchEnd but still shows a normal roundEnd screen first', () => {
     const state = startMahjong(SEATS);
     state.players[0]!.score = 2000;
     autoPlayOneRound(state);
+    // 結算畫面（含胡牌牌型／台數）要先完整顯示出來，不能因為這局剛好衝到終局分數就直接跳過
+    expect(state.phase).toBe('roundEnd');
+    expect(state.pendingMatchEnd).toBe(true);
+    expect(state.matchOver).toBe(false);
+
+    finalizeMahjongMatch(state);
     expect(state.matchOver).toBe(true);
+    expect(state.phase).toBe('matchEnd');
     expect(state.players[state.matchWinnerSeat!]!.score).toBeGreaterThanOrEqual(2000);
   });
 
-  it('ends the match after 4 rounds even if nobody reached the target score', () => {
+  it('flags the 4th round as pendingMatchEnd even if nobody reached the target score', () => {
     const state = startMahjong(SEATS);
     state.round = 4;
     autoPlayOneRound(state);
+    expect(state.phase).toBe('roundEnd');
+    expect(state.pendingMatchEnd).toBe(true);
+    expect(state.matchOver).toBe(false);
+
+    finalizeMahjongMatch(state);
     expect(state.matchOver).toBe(true);
+  });
+
+  it('does not flag pendingMatchEnd for an ordinary round that neither hits the score nor the round limit', () => {
+    const state = startMahjong(SEATS);
+    autoPlayOneRound(state);
+    expect(state.phase).toBe('roundEnd');
+    expect(state.pendingMatchEnd).toBe(false);
+    expect(state.matchOver).toBe(false);
   });
 });
 

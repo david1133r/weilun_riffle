@@ -30,6 +30,18 @@ const DICE_FACE: Record<number, string> = {
   6: '⚅',
 };
 
+/** 自己摸到的花牌，放在手牌上方——花牌不能打出去，也算進計台（花牌／正花），要讓玩家看得到摸了哪幾張。 */
+function MyFlowers({ flowers }: { flowers: MahjongTileId[] }) {
+  if (flowers.length === 0) return null;
+  return (
+    <div className="mahjong-flowers">
+      {flowers.map((tile, index) => (
+        <MahjongTileIcon key={`${tile}-${index}`} tile={tile} scale={0.9} />
+      ))}
+    </div>
+  );
+}
+
 /** 自己碰／吃／槓出去的面子，放在手牌旁邊讓自己看得到摸過的牌型。 */
 function MyMelds({ melds }: { melds: MahjongMeld[] }) {
   const { t } = useSkin();
@@ -164,7 +176,7 @@ export function MahjongRoom({ room }: { room: RoomView }) {
   const myInfo = game && mySeatNumber !== null ? game.seats[mySeatNumber] : undefined;
   const myNickname = room.seats.find((s) => s.playerId === me.playerId)?.nickname ?? '';
   // RoomShell 的座位列表不畫自己，所以自己吃碰槓胡的大字提示要另外在這裡蓋
-  const myBanner = useMahjongActionBanner(room.log, myNickname);
+  const myBanner = useMahjongActionBanner(room.log, room.logSeq, myNickname);
 
   // 剛開局（房主按下開始遊戲）先擲骰 3 秒決定莊家，接著蓋牌 3 秒醞釀一下，時間到才翻牌，
   // 順便彈「遊戲開始」——只在「這一場」真的從沒開始變成開始時觸發一次，
@@ -206,6 +218,10 @@ export function MahjongRoom({ room }: { room: RoomView }) {
   const respondJoinRequest = (accept: boolean) => {
     run(() => emitWithAck('room:respondJoinRequest', { accept }));
   };
+
+  // 開局擲骰／蓋牌動畫還沒播完（還沒翻牌顯示「遊戲開始」）之前，真人也不能搶著動作，
+  // 跟伺服器那邊電腦座位的延遲門檻是同一件事的兩面。
+  const actionsLocked = dealPhase === 'dice' || dealPhase === 'hidden';
 
   const center = (
     <>
@@ -288,7 +304,9 @@ export function MahjongRoom({ room }: { room: RoomView }) {
             />
           )}
 
-          <DiscardBoard seats={game.seats} lastDiscard={game.lastDiscard} />
+          {game.phase !== 'roundEnd' && (
+            <DiscardBoard seats={game.seats} lastDiscard={game.lastDiscard} />
+          )}
 
           {game.phase === 'selfDraw' && game.mySelfDraw && (
             <div className="table__prompt">
@@ -298,6 +316,7 @@ export function MahjongRoom({ room }: { room: RoomView }) {
                   <button
                     type="button"
                     className="btn btn--primary mahjong-action--claim"
+                    disabled={actionsLocked}
                     onClick={() => selfDrawAction('hu')}
                   >
                     {t('mahjong.hu')}
@@ -308,12 +327,13 @@ export function MahjongRoom({ room }: { room: RoomView }) {
                     type="button"
                     key={choice.tile}
                     className="btn"
+                    disabled={actionsLocked}
                     onClick={() => selfDrawAction('gang', choice.tile)}
                   >
                     {t('mahjong.gang')} {mahjongTileLabel(choice.tile)}
                   </button>
                 ))}
-                <button type="button" className="btn" onClick={() => selfDrawAction('none')}>
+                <button type="button" className="btn" disabled={actionsLocked} onClick={() => selfDrawAction('none')}>
                   {t('mahjong.none')}
                 </button>
               </div>
@@ -333,6 +353,7 @@ export function MahjongRoom({ room }: { room: RoomView }) {
                   <button
                     type="button"
                     className="btn btn--primary mahjong-action--claim"
+                    disabled={actionsLocked}
                     onClick={() => respond('hu')}
                   >
                     {t('mahjong.hu')}
@@ -342,6 +363,7 @@ export function MahjongRoom({ room }: { room: RoomView }) {
                   <button
                     type="button"
                     className="btn mahjong-action--claim"
+                    disabled={actionsLocked}
                     onClick={() => respond('peng')}
                   >
                     {t('mahjong.peng')}
@@ -353,6 +375,7 @@ export function MahjongRoom({ room }: { room: RoomView }) {
                       type="button"
                       key={`${opt[0]}-${opt[1]}`}
                       className="btn mahjong-action--claim"
+                      disabled={actionsLocked}
                       onClick={() => respond('chi', [opt[0], opt[1]])}
                     >
                       {t('mahjong.chi')}
@@ -365,12 +388,12 @@ export function MahjongRoom({ room }: { room: RoomView }) {
                     </button>
                   ))}
                 {game.myReaction.options.includes('gang') && (
-                  <button type="button" className="btn" onClick={() => respond('gang')}>
+                  <button type="button" className="btn" disabled={actionsLocked} onClick={() => respond('gang')}>
                     {t('mahjong.gang')}
                   </button>
                 )}
                 {game.myReaction.options.includes('pass') && (
-                  <button type="button" className="btn" onClick={() => respond('pass')}>
+                  <button type="button" className="btn" disabled={actionsLocked} onClick={() => respond('pass')}>
                     {t('mahjong.pass')}
                   </button>
                 )}
@@ -384,56 +407,64 @@ export function MahjongRoom({ room }: { room: RoomView }) {
               {roundResult.winType === 'draw' ? (
                 <p>{t('mahjong.drawResult')}</p>
               ) : (
-                <p>
-                  {t(roundResult.winType === 'selfDraw' ? 'mahjong.winSelfDraw' : 'mahjong.winDiscard', {
-                    name: nicknameOfSeat(roundResult.winnerSeat),
-                    n: roundResult.tai,
-                  })}
-                </p>
-              )}
-              {roundResult.winnerSeat !== null && game.allHands?.[roundResult.winnerSeat] && (
-                <div className="mahjong-winning-hand">
-                  <span className="mahjong-winning-hand__label">{t('mahjong.winningHandLabel')}</span>
-                  <div className="mahjong-winning-hand__tiles">
-                    {game.allHands[roundResult.winnerSeat]!.map((tile, index) => (
-                      <MahjongTileIcon key={`hand-${tile}-${index}`} tile={tile} scale={1} />
-                    ))}
-                    {(game.seats[roundResult.winnerSeat]?.melds ?? []).map((meld, meldIndex) => (
-                      <div key={meldIndex} className="mahjong-winning-hand__meld">
-                        {meld.tiles.map((tile, tileIndex) => (
-                          <MahjongTileIcon key={`${tile}-${tileIndex}`} tile={tile} scale={1} />
+                <>
+                  {roundResult.winnerSeat !== null && game.allHands?.[roundResult.winnerSeat] && (
+                    <div className="mahjong-winning-hand">
+                      <span className="mahjong-winning-hand__label">{t('mahjong.winningHandLabel')}</span>
+                      <div className="mahjong-winning-hand__tiles">
+                        {game.allHands[roundResult.winnerSeat]!.map((tile, index) => (
+                          <MahjongTileIcon key={`hand-${tile}-${index}`} tile={tile} scale={1} />
+                        ))}
+                        {(game.seats[roundResult.winnerSeat]?.melds ?? []).map((meld, meldIndex) => (
+                          <div key={meldIndex} className="mahjong-winning-hand__meld">
+                            {meld.tiles.map((tile, tileIndex) => (
+                              <MahjongTileIcon key={`${tile}-${tileIndex}`} tile={tile} scale={1} />
+                            ))}
+                          </div>
                         ))}
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {roundResult.breakdown.length > 0 && (
-                <ul>
-                  {roundResult.breakdown.map((item) => (
-                    <li key={item.name}>
-                      {item.name} +{item.tai}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <p className="muted">{t('mahjong.nextRoundSoon')}</p>
-              {mySeatNumber !== null && (
-                <div className="mahjong-ready">
-                  <button
-                    type="button"
-                    className="btn btn--primary"
-                    disabled={game.roundReady[mySeatNumber] ?? false}
-                    onClick={continueRound}
-                  >
-                    {t(game.roundReady[mySeatNumber] ? 'mahjong.readyWaiting' : 'mahjong.readyContinue')}
-                  </button>
-                  <p className="muted">
-                    {t('mahjong.readyCount', {
-                      n: [0, 1, 2, 3].filter((seat) => game.roundReady[seat]).length,
+                    </div>
+                  )}
+                  <p>
+                    {t(roundResult.winType === 'selfDraw' ? 'mahjong.winSelfDraw' : 'mahjong.winDiscard', {
+                      name: nicknameOfSeat(roundResult.winnerSeat),
+                      n: roundResult.tai,
                     })}
                   </p>
-                </div>
+                  {roundResult.breakdown.length > 0 && (
+                    <ul>
+                      {roundResult.breakdown.map((item) => (
+                        <li key={item.name}>
+                          {item.name} +{item.tai}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              )}
+              {game.pendingMatchEnd ? (
+                <p className="muted">{t('mahjong.matchEndingSoon')}</p>
+              ) : (
+                <>
+                  <p className="muted">{t('mahjong.nextRoundSoon')}</p>
+                  {mySeatNumber !== null && (
+                    <div className="mahjong-ready">
+                      <button
+                        type="button"
+                        className="btn btn--primary"
+                        disabled={game.roundReady[mySeatNumber] ?? false}
+                        onClick={continueRound}
+                      >
+                        {t(game.roundReady[mySeatNumber] ? 'mahjong.readyWaiting' : 'mahjong.readyContinue')}
+                      </button>
+                      <p className="muted">
+                        {t('mahjong.readyCount', {
+                          n: [0, 1, 2, 3].filter((seat) => game.roundReady[seat]).length,
+                        })}
+                      </p>
+                    </div>
+                  )}
+                </>
               )}
               {game.allHands && (
                 <RevealedHands
@@ -451,9 +482,6 @@ export function MahjongRoom({ room }: { room: RoomView }) {
       {matchOver && game && (
         <div className="table__result">
           <h2>{t('mahjong.matchOverTitle')}</h2>
-          {game.matchWinnerSeat !== null && (
-            <p>{t('mahjong.matchWinner', { name: nicknameOfSeat(game.matchWinnerSeat) })}</p>
-          )}
           {game.allHands && (
             <RevealedHands
               allHands={game.allHands}
@@ -462,6 +490,7 @@ export function MahjongRoom({ room }: { room: RoomView }) {
               title={t('mahjong.revealedHandsTitle')}
             />
           )}
+          <p>{t('mahjong.matchCompleteRanking', { n: game.round })}</p>
           <ol>
             {[0, 1, 2, 3]
               .slice()
@@ -506,6 +535,7 @@ export function MahjongRoom({ room }: { room: RoomView }) {
                       ? t('mahjongHint.reaction')
                       : t('mahjongHint.yourTurnDiscard')}
           </span>
+          {myInfo && <MyFlowers flowers={myInfo.flowers} />}
           {myInfo && <MyMelds melds={myInfo.melds} />}
           <div className="mahjong-hand-row">
             {hand.length === 0 && <span className="muted">{t('mahjong.handEmpty')}</span>}
@@ -513,7 +543,7 @@ export function MahjongRoom({ room }: { room: RoomView }) {
               <MahjongTileIcon
                 key={`${tile}-${index}`}
                 tile={tile}
-                faceDown={dealPhase === 'hidden'}
+                faceDown={dealPhase === 'dice' || dealPhase === 'hidden'}
                 disabled={!canDiscard}
                 onClick={canDiscard ? () => discard(tile) : undefined}
               />
@@ -522,7 +552,7 @@ export function MahjongRoom({ room }: { room: RoomView }) {
               <div className="mahjong-hand-row__drawn" style={{ marginLeft: tileWidth(1.3) + 4 }}>
                 <MahjongTileIcon
                   tile={justDrawnTile}
-                  faceDown={dealPhase === 'hidden'}
+                  faceDown={dealPhase === 'dice' || dealPhase === 'hidden'}
                   disabled={!canDiscard}
                   onClick={canDiscard ? () => discard(justDrawnTile) : undefined}
                 />

@@ -83,6 +83,12 @@ export interface MahjongState {
   /** 整場比賽（達到 20000 分）是否結束，真正的終局。 */
   matchOver: boolean;
   matchWinnerSeat: number | null;
+  /**
+   * 這一局的結算（phase === 'roundEnd'）是不是最後一局——分數已經到門檻或局數已經打滿。
+   * 這種情況下畫面還是先照一般結算畫面顯示胡牌牌型，等 handlers.ts 給的固定秒數過了才
+   * 真的呼叫 finalizeMahjongMatch 轉成 matchOver，不會直接跳過結算畫面。
+   */
+  pendingMatchEnd: boolean;
   wall: MahjongTileId[];
   players: MahjongPlayerState[];
   lastDiscard: { tile: MahjongTileId; fromSeat: number } | null;
@@ -176,6 +182,7 @@ export function startMahjong(seats: Seats): MahjongState {
     over: false,
     matchOver: false,
     matchWinnerSeat: null,
+    pendingMatchEnd: false,
     wall: [],
     players: seats.map(() => ({
       hand: [],
@@ -221,6 +228,7 @@ function resetForNewRound(state: MahjongState): void {
   state.pendingKongReplacement = false;
   state.pendingSelfDrawContext = null;
   state.pendingRobKong = null;
+  state.pendingMatchEnd = false;
   state.over = false;
 
   for (const p of state.players) {
@@ -590,24 +598,35 @@ function endRoundDraw(state: MahjongState): void {
   finishRound(state);
 }
 
+/**
+ * 每一局結束（贏牌或流局）一律先進 roundEnd，把胡牌牌型／台數結算畫面完整顯示出來——
+ * 就算這局已經讓比賽達到終局條件，也不會直接跳過結算畫面。是不是最後一局只記在
+ * pendingMatchEnd 裡，由 handlers.ts 決定顯示完結算畫面後何時真的呼叫 finalizeMahjongMatch。
+ */
 function finishRound(state: MahjongState): void {
   state.selfDraw = null;
   state.reaction = null;
   state.over = true;
   state.turnDeadline = 0;
+  state.phase = 'roundEnd';
+  // 結算畫面要等大家按繼續才能開下一局，每次進到這個畫面都要重新歸零。
+  state.roundReady = [false, false, false, false];
 
-  // 兩個結束條件哪個先到都算數：有人衝到目標分數，或是已經打滿局數上限——
-  // 不管是哪種，贏家都是當下分數最高的那位，打滿局數時未必有人衝到 2000。
+  // 兩個結束條件哪個先到都算數：有人衝到目標分數，或是已經打滿局數上限。
   const maxScore = Math.max(...state.players.map((p) => p.score));
-  if (maxScore >= MAHJONG_TARGET_SCORE || state.round >= MAHJONG_MAX_ROUNDS) {
-    state.matchWinnerSeat = state.players.findIndex((p) => p.score === maxScore);
-    state.matchOver = true;
-    state.phase = 'matchEnd';
-  } else {
-    state.phase = 'roundEnd';
-    // 結算畫面要等大家按繼續才能開下一局，每次進到這個畫面都要重新歸零。
-    state.roundReady = [false, false, false, false];
-  }
+  state.pendingMatchEnd = maxScore >= MAHJONG_TARGET_SCORE || state.round >= MAHJONG_MAX_ROUNDS;
+}
+
+/**
+ * 結算畫面顯示完畢後，真正把比賽收尾：贏家是當下分數最高的那位
+ * （打滿局數上限時未必有人衝到 MAHJONG_TARGET_SCORE）。只有 pendingMatchEnd 的
+ * 那一局結束後才會呼叫。
+ */
+export function finalizeMahjongMatch(state: MahjongState): void {
+  const maxScore = Math.max(...state.players.map((p) => p.score));
+  state.matchWinnerSeat = state.players.findIndex((p) => p.score === maxScore);
+  state.matchOver = true;
+  state.phase = 'matchEnd';
 }
 
 /** 結算畫面按下「繼續」；只有輪到這個畫面（phase === 'roundEnd'）時才算數。 */
@@ -668,13 +687,19 @@ export function respondToReaction(
   return { ok: true };
 }
 
-/** 逾時代打：出牌階段丟最後一張、自摸階段不動作、反應階段一律 PASS。 */
+/**
+ * 逾時代打：出牌階段優先打掉這一手剛摸到的那張牌（真人在想的通常就是「這張要不要」），
+ * 碰／吃來的沒有摸牌可打，退回丟手牌最後一張；自摸階段不動作、反應階段一律 PASS。
+ */
 export function autoActMahjong(state: MahjongState): { action: string } | null {
   if (state.over) return null;
   switch (state.phase) {
     case 'discard': {
       const player = state.players[state.turnSeat]!;
-      const tile = player.hand[player.hand.length - 1];
+      const tile =
+        state.justDrawn && state.justDrawn.seat === state.turnSeat
+          ? state.justDrawn.tile
+          : player.hand[player.hand.length - 1];
       if (!tile) return null;
       applyDiscard(state, tile);
       return { action: 'discard' };

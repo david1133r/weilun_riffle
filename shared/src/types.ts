@@ -444,6 +444,12 @@ export interface RoomView {
   game: GameView | null;
   log: LogEvent[];
   /**
+   * 累計曾經 push 過的 log 事件數，不受 LOG_HISTORY 裁剪影響（只增不減）。
+   * 用來判斷「log 是否有新事件」——log 陣列本身被裁剪過，陣列長度會停在
+   * LOG_HISTORY 不再變化，不能拿來偵測新事件。
+   */
+  logSeq: number;
+  /**
    * 台灣麻將專用：房間滿位時有人申請加入頂替電腦座位，等房主接受或婉拒。
    * 只有房主的畫面會出現操作按鈕，但每個人都看得到申請者是誰。非麻將房固定 null。
    */

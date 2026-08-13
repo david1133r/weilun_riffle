@@ -125,6 +125,7 @@ export function RoomShell({ room, center, footer, isMyTurn, showLog = true }: Pr
                 game={game}
                 chips={room.chips?.[seat.playerId]}
                 log={room.log}
+                logSeq={room.logSeq}
               />
             ))}
             {Array.from({ length: room.maxPlayers - room.seats.length }, (_, i) => (

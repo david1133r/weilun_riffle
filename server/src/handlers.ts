@@ -51,6 +51,7 @@ import {
   confirmMahjongRoundReady,
   continueMahjongRound,
   discardTile,
+  finalizeMahjongMatch,
   rankMahjongSeats,
   respondToReaction,
   startMahjong,
@@ -106,11 +107,25 @@ const roomChannel = (roomId: string) => `room:${roomId}`;
 /** 斷線的人輪到時不用等滿 45 秒，短暫等一下就代打。 */
 const DISCONNECTED_TURN_MS = 3_000;
 
-/** 台灣麻將一局結束後，等大家在結算畫面按繼續；超過這個時間還沒按的真人直接踢出去換電腦代打。 */
-const MAHJONG_ROUND_READY_MS = 20_000;
+/** 台灣麻將一局結束後，等大家在結算畫面按繼續；超過這個時間還沒按齊也會直接開下一局，不會踢人。 */
+const MAHJONG_ROUND_READY_MS = 3 * 60_000;
+
+/**
+ * 台灣麻將打完最後一局（pendingMatchEnd）後，結算畫面（胡牌牌型／台數）固定顯示這麼久，
+ * 不用等玩家按繼續——反正沒有下一局可以繼續，時間到就自動轉成整場比賽結束畫面。
+ */
+const MAHJONG_MATCH_END_DELAY_MS = 20_000;
 
 /** 電腦座位出手前的固定延遲。真人的思考時間在 mahjongEngine.ts 另外給 1 分鐘。 */
 const MAHJONG_NPC_DELAY_MS = 1_800;
+
+/**
+ * 開局擲骰動畫的總長度，要跟 MahjongTable.tsx 的 dealPhase 時間軸（擲骰 3s、蓋牌 3s、
+ * 翻牌 1.5s，滿 7.5s 才顯示「遊戲開始」）對齊——不然電腦座位可能在畫面還在擲骰、蓋牌時
+ * 就搶先出手，等動畫播完畫面一翻牌，牌局其實已經跑掉好幾步了。多留 0.75 秒緩衝，
+ * 讓玩家看完「遊戲開始」的字樣再開始動作，不會一翻牌電腦就立刻打牌。
+ */
+const MAHJONG_DEAL_MS = 7_500 + 750;
 
 const BET_ACTIONS: readonly BetAction[] = ['fold', 'check', 'call', 'raise', 'allin'];
 
@@ -246,6 +261,39 @@ function parseMahjongAction(value: unknown): MahjongAction | null {
     case 'continueRound':
       return { kind };
   }
+}
+
+/**
+ * 每個座位目前手上的槓（暗槓／加槓／明槓皆算）用到的牌，供 gangLogDiff 比對用。
+ * 加槓是把既有的碰 meld 原地改成槓（tiles/type 變了，陣列長度不變），暗槓則是整組新增，
+ * 兩種都要能抓到，所以比對的是「每家有哪些槓用的牌」而不是 meld 陣列長度。
+ */
+function gangTileSnapshot(state: MahjongState): MahjongTileId[][] {
+  return state.players.map((p) => p.melds.filter((m) => m.type === 'gang').map((m) => m.tiles[0]!));
+}
+
+/**
+ * 自摸階段宣告暗槓／加槓，跟反應階段有人放棄搶槓後補完的加槓，都不會經過
+ * respondToReaction 裡「明槓」那個既有的 pushLog 分支（那支只認「吃碰別人棄牌」），
+ * 所以用動作前後的槓牌快照比對，抓出這次呼叫新完成的槓，逐一補上戰報。
+ */
+function pushMahjongGangLogs(room: Room, before: MahjongTileId[][], state: MahjongState): void {
+  state.players.forEach((player, seat) => {
+    const remaining = [...before[seat]!];
+    for (const meld of player.melds) {
+      if (meld.type !== 'gang') continue;
+      const tile = meld.tiles[0]!;
+      const idx = remaining.indexOf(tile);
+      if (idx !== -1) {
+        remaining.splice(idx, 1);
+        continue;
+      }
+      const gangPlayerId = room.seats[seat];
+      if (gangPlayerId) {
+        pushLog(room, { t: 'mahjongMeld', player: nicknameOf(room, gangPlayerId), kind: 'gang', tiles: [tile] });
+      }
+    }
+  });
 }
 
 function reply<T>(ack: unknown, payload: Parameters<Ack<T>>[0]): void {
@@ -728,6 +776,7 @@ export class GameServer {
       case 'taiwanMahjong': {
         const state = startMahjong(room.seats);
         room.game = { type: 'taiwanMahjong', state };
+        room.mahjongDealUntil = Date.now() + MAHJONG_DEAL_MS;
         pushLog(room, { t: 'mahjongStart', players: seatedPlayers(room).length });
         break;
       }
@@ -928,13 +977,17 @@ export class GameServer {
           pushLog(room, { t: 'mahjongDiscard', player: nicknameOf(room, playerId), tile: action.tile });
         }
         break;
-      case 'selfDraw':
+      case 'selfDraw': {
+        const gangsBefore = gangTileSnapshot(game.state);
         result = chooseSelfDrawAction(room.seats, game.state, playerId, action.action, action.tile);
+        if (result.ok) pushMahjongGangLogs(room, gangsBefore, game.state);
         break;
+      }
       case 'respond': {
         // 戰報要記的是實際被吃／碰／槓掉的那張棄牌，不是手上湊組合用的那兩張——
         // 這張要在呼叫 respondToReaction 之前先拿，因為成功後 reaction 就被引擎清掉了。
         const eatenTile = game.state.reaction?.discardedTile;
+        const gangsBefore = gangTileSnapshot(game.state);
         result = respondToReaction(room.seats, game.state, playerId, action.action, action.chiTiles);
         if (result.ok && action.action !== 'pass' && action.action !== 'hu' && eatenTile) {
           pushLog(room, {
@@ -943,6 +996,10 @@ export class GameServer {
             kind: action.action,
             tiles: [eatenTile],
           });
+        } else if (result.ok && action.action === 'pass') {
+          // PASS 有可能是放棄搶槓，讓別人剛剛宣告的加槓補完——那組槓要記在「加槓的人」身上，
+          // 不是這個按 PASS 的人，所以不能用 playerId，得靠槓牌快照比對抓出真正補完的座位。
+          pushMahjongGangLogs(room, gangsBefore, game.state);
         }
         break;
       }
@@ -977,6 +1034,11 @@ export class GameServer {
     }
     if (!room.players.has(session.playerId)) {
       return reply(ack, { ok: false, error: { code: 'SPECTATOR', message: '觀戰者不能操作' } });
+    }
+    // 最後一局的結算畫面沒有下一局可以繼續，不接受這個動作——client 也不會顯示按鈕，
+    // 這裡只是防呆，避免萬一還是收到這個事件而多開出一局。
+    if (game.state.pendingMatchEnd) {
+      return reply(ack, { ok: false, error: { code: 'WRONG_PHASE', message: MAHJONG_ERROR_MESSAGE.WRONG_PHASE } });
     }
 
     const result = confirmMahjongRoundReady(room.seats, game.state, session.playerId);
@@ -1247,8 +1309,13 @@ export class GameServer {
   }
 
   /**
-   * 台灣麻將：一局結束（state.over）但整場比賽還沒結束（!matchOver）時，
-   * 停在結算畫面等大家按繼續——電腦座位自動視為已按，全部按完就馬上開下一局；
+   * 台灣麻將：一局結束（state.over）但整場比賽還沒結束（!matchOver）時，停在結算畫面。
+   *
+   * 如果這局是 pendingMatchEnd（分數已達門檻或局數已打滿），結算畫面沒有「下一局」可以
+   * 繼續，就不等玩家按繼續了，固定顯示 MAHJONG_MATCH_END_DELAY_MS 之後直接收尾成整場
+   * 比賽結束畫面——胡牌牌型／台數還是完整秀過一輪，只是不需要玩家確認。
+   *
+   * 不然（還有下一局）就照原本的方式：電腦座位自動視為已按，全部按完就馬上開下一局；
    * 逾時 MAHJONG_ROUND_READY_MS 還沒按也不會把人踢出房間，直接照樣開下一局，
    * 真人這局就跟著留在原位繼續打，只是少按了一次確認。
    */
@@ -1261,6 +1328,16 @@ export class GameServer {
     const game = room.game;
     if (game?.type !== 'taiwanMahjong' || !game.state.over || game.state.matchOver) return;
     if (game.state.phase !== 'roundEnd') return;
+
+    if (game.state.pendingMatchEnd) {
+      room.handTimer = setTimeout(() => {
+        room.handTimer = null;
+        if (this.rooms.get(room.id) !== room) return; // 房間已經被砍掉了
+        if (room.game !== game) return; // 這一局已經被別的事件換掉了
+        this.finalizeMahjongMatchEnd(room, game.state);
+      }, MAHJONG_MATCH_END_DELAY_MS);
+      return;
+    }
 
     this.autoConfirmMahjongNpcSeats(room, game.state);
     if (allMahjongRoundReady(room.seats, game.state)) {
@@ -1287,6 +1364,16 @@ export class GameServer {
     if (bankerId) {
       pushLog(room, { t: 'mahjongRound', round: state.round, banker: nicknameOf(room, bankerId) });
     }
+    this.afterGameAction(room);
+  }
+
+  /** 結算畫面顯示夠久了：真正把整場比賽收尾，afterGameAction 會接著推名次、停計時器。 */
+  private finalizeMahjongMatchEnd(room: Room, state: MahjongState): void {
+    if (room.handTimer) {
+      clearTimeout(room.handTimer);
+      room.handTimer = null;
+    }
+    finalizeMahjongMatch(state);
     this.afterGameAction(room);
   }
 
@@ -1410,11 +1497,15 @@ export class GameServer {
     const member = playerId ? room.players.get(playerId) : undefined;
     if (!member?.isNpc) return;
 
+    // 開局擲骰動畫還沒播完的話，電腦座位要跟真人一樣等，不能搶在畫面翻牌前就出手。
+    const dealRemaining = room.mahjongDealUntil ? Math.max(0, room.mahjongDealUntil - Date.now()) : 0;
+    const delay = Math.max(MAHJONG_NPC_DELAY_MS, dealRemaining);
+
     room.npcTimer = setTimeout(() => {
       room.npcTimer = null;
       if (this.rooms.get(room.id) !== room || room.game !== game) return; // 房間或這一局已經被換掉了
       this.runMahjongNpcAction(room, game.state);
-    }, MAHJONG_NPC_DELAY_MS);
+    }, delay);
   }
 
   private runMahjongNpcAction(room: Room, state: MahjongState): void {
@@ -1441,7 +1532,9 @@ export class GameServer {
       if (playerId && player) {
         const before = state.roundResult;
         const decision = aiSelfDrawAction(player, state.selfDraw);
-        chooseSelfDrawAction(room.seats, state, playerId, decision.action, decision.tile);
+        const gangsBefore = gangTileSnapshot(state);
+        const result = chooseSelfDrawAction(room.seats, state, playerId, decision.action, decision.tile);
+        if (result.ok) pushMahjongGangLogs(room, gangsBefore, state);
         this.logMahjongRoundEnd(room, state, before);
       }
     } else if (state.phase === 'reaction' && state.reaction) {
@@ -1455,6 +1548,7 @@ export class GameServer {
           discardedTile: reaction.discardedTile,
           chiOptions: reaction.chiOptions,
         });
+        const gangsBefore = gangTileSnapshot(state);
         const result = respondToReaction(room.seats, state, playerId, decision.action, decision.chiTiles);
         if (result.ok && decision.action !== 'pass' && decision.action !== 'hu') {
           pushLog(room, {
@@ -1463,6 +1557,9 @@ export class GameServer {
             kind: decision.action,
             tiles: [reaction.discardedTile],
           });
+        } else if (result.ok && decision.action === 'pass') {
+          // 同上：電腦放棄搶槓，可能是幫別人（也可能是另一個電腦）補完加槓。
+          pushMahjongGangLogs(room, gangsBefore, state);
         }
         this.logMahjongRoundEnd(room, state, before);
       }

@@ -549,6 +549,11 @@ export interface MahjongGameView {
   allHands: Record<number, MahjongTileId[]> | null;
   /** 結算畫面（phase === 'roundEnd'）誰按了「繼續」，index = seat；其他時候都是全 false。 */
   roundReady: boolean[];
+  /**
+   * 這一局的結算畫面是不是最後一局（分數已達門檻或局數已打滿）。這種情況下結算畫面
+   * 不用等玩家按繼續，過一段固定時間伺服器會自動轉成 over === true 的整場結束畫面。
+   */
+  pendingMatchEnd: boolean;
 }
 
 // ---------------------------------------------------------------------------
